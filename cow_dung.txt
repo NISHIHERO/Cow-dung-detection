@@ -1,0 +1,100 @@
+import cv2
+import numpy as np
+
+# 画像を読み込む
+img = cv2.imread("square11.jpg")
+
+# 画像をぼかす
+img_blur = cv2.GaussianBlur(img, (11, 11), 0)
+
+# 画像をHSV色空間に変換する
+hsv = cv2.cvtColor(img_blur, cv2.COLOR_BGR2HSV)
+
+# クリックした色のHSV値を保存するリスト
+colors = []
+
+# # マウスクリックイベントのコールバック関数
+def on_mouse(event, x, y, flags, param):
+    if event == cv2.EVENT_LBUTTONDOWN:
+        # クリックした色の HSV 値をリストに追加する
+        colors.append(hsv[y, x])
+        if len(colors) >= 10:
+            # HSV値の平均値と標準偏差を計算する
+            h_mean, h_std = np.mean(colors, axis=0)[0], np.std(colors, axis=0)[0]
+            s_mean, s_std = np.mean(colors, axis=0)[1], np.std(colors, axis=0)[1]
+            v_mean, v_std = np.mean(colors, axis=0)[2], np.std(colors, axis=0)[2]
+
+            # HSVの平均値と標準偏差を画像中に表示する
+            text = "HSV mean: ({:.2f}, {:.2f}, {:.2f}), std: ({:.2f}, {:.2f}, {:.2f})".format(
+                h_mean, s_mean, v_mean, h_std, s_std, v_std)
+            cv2.putText(img_blur, text, (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.24,
+                        (255, 0, 0), 1)
+
+            # 検出する色の範囲を定義する
+            lower = np.array([h_mean - 2 * h_std, s_mean - 2 * s_std, v_mean - 2 * v_std])
+            upper = np.array([h_mean + 2 * h_std, s_mean + 2 * s_std, v_mean + 2 * v_std])
+
+            # 色の範囲からマスク画像を作成する
+            mask = cv2.inRange(hsv, lower, upper)
+
+            # 輪郭を抽出する
+            contours, _ = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+            count = 0
+            # 検出した物体を画像に描画する(50ピクセル以下を弾く）
+            count = 0
+            for c in contours:
+                area = cv2.contourArea(c)
+                if area < 200:
+                    continue
+                x, y, w, h = cv2.boundingRect(c)
+                cv2.drawContours(img_blur, [c], 0, (0, 0, 255), 2)
+                count += 1
+
+            # 個数を表示する
+            cv2.putText(img_blur, "Contours: {}".format(count), (10, 30),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.3, (255, 0, 0), 1)
+
+
+
+            #被覆率を求める
+            total_area = 0
+            for c in contours:
+                area = cv2.contourArea(c)
+                if area < 200:
+                    continue
+                total_area += area
+                x, y, w, h = cv2.boundingRect(c)
+            img_height, img_width = img.shape[:2]
+            img_area = img_height * img_width
+            outside_area = img_area - total_area
+
+            ratio = total_area / outside_area
+            cv2.putText(img_blur, "Ratio: {:.5f}".format(ratio), (10, 90),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 1)
+
+
+            # 検出した物体の面積を出す
+            for c in contours:
+                area = cv2.contourArea(c)
+                print("Contour area:", area)
+
+
+
+            # 輪郭が描画された画像を保存する
+            cv2.imwrite("contour_image_99.jpg", img_blur)
+
+            # 画像を表示する
+            cv2.imshow("img_blur", img_blur)
+
+
+# ウィンドウ作成
+cv2.namedWindow("Image")
+
+# マウスクリックイベントを設定する
+cv2.setMouseCallback("Image", on_mouse)
+
+# 画像を表示する
+cv2.imshow("Image", img_blur)
+cv2.waitKey(0)
+cv2.destroyAllWindows()
